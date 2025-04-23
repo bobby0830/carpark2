@@ -1,9 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Button, Card, CardContent, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
+import { Box, Typography, Button, Card, CardContent, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, CircularProgress } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChargingRequest, ChargingStation } from '../types/types';
 import { formatTime } from '../utils/timeFormat';
+import axios from 'axios';
+
+// API 伺服器基本 URL
+// 判斷環境，如果是生產環境則使用雲端 API，否則使用本地開發環境
+const API_URL = window.location.hostname === 'localhost' 
+  ? 'http://localhost:5000' 
+  : window.location.origin; // 使用目前網站的根路徑作為 API 端點
 
 interface StatusProps {
   chargingStation: ChargingStation;
@@ -15,6 +22,43 @@ const Status: React.FC<StatusProps> = ({ chargingStation, setChargingStation }) 
   const { stationId } = useParams<{ stationId: string }>();
   const navigate = useNavigate();
   const [currentRequest, setCurrentRequest] = useState<ChargingRequest | undefined>(undefined);
+  const [apiLoading, setApiLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  
+  // 更新充電站資料到 MongoDB
+  const updateStationData = async (updatedStation: ChargingStation) => {
+    try {
+      console.log(`嘗試更新充電站資料到 ${API_URL}/stations/1`);
+      console.log('發送資料:', JSON.stringify(updatedStation, null, 2));
+      
+      const response = await axios.put(`${API_URL}/stations/1`, updatedStation, {
+        timeout: 10000, // 10 秒超時
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+      
+      console.log('更新成功:', response.status, response.data);
+      setApiError(null);
+      return true;
+    } catch (err: any) {
+      console.error('更新充電站資料失敗:', err);
+      
+      if (err.response) {
+        console.error('回應狀態:', err.response.status);
+        console.error('回應資料:', err.response.data);
+        setApiError(`更新失敗 (${err.response.status}): 請確認 API server 是否正確設定`);
+      } else if (err.request) {
+        console.error('無回應:', err.request);
+        setApiError('更新失敗: 無法連接到 API server');
+      } else {
+        console.error('請求錯誤:', err.message);
+        setApiError(`更新失敗: ${err.message}`);
+      }
+      return false;
+    }
+  };
 
   // Global countdown effect for charging station
   useEffect(() => {
@@ -186,14 +230,32 @@ const Status: React.FC<StatusProps> = ({ chargingStation, setChargingStation }) 
     );
   }
 
-  const handleConfirmLeave = () => {
-    setChargingStation((prev: ChargingStation) => ({
-      ...prev,
+  const handleConfirmLeave = async () => {
+    setApiLoading(true);
+    setApiError(null);
+    
+    // 創建更新後的充電站狀態
+    const updatedStation: ChargingStation = {
+      ...chargingStation,
       currentRequest: undefined,
       isAvailable: true
-    }));
+    };
+    
+    // 先更新本地狀態
+    setChargingStation(updatedStation);
+    
+    // 然後將數據保存到 MongoDB
+    const success = await updateStationData(updatedStation);
+    
+    setApiLoading(false);
     setConfirmDialogOpen(false);
+    
+    // 無論 API 請求成功與否，都導航回首頁
     navigate('/');
+    
+    if (!success) {
+      console.error('離開充電站時更新資料庫失敗，但本地狀態已更新');
+    }
   };
 
   return (

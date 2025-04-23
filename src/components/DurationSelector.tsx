@@ -12,10 +12,18 @@ import {
   DialogTitle,
   DialogContent,
   DialogContentText,
-  DialogActions
+  DialogActions,
+  CircularProgress
 } from '@mui/material';
 import { ChargingStation, ChargingRequest } from '../types/types';
 import { formatTime } from '../utils/timeUtils';
+import axios from 'axios';
+
+// API 伺服器基本 URL
+// 判斷環境，如果是生產環境則使用雲端 API，否則使用本地開發環境
+const API_URL = window.location.hostname === 'localhost' 
+  ? 'http://localhost:5000' 
+  : window.location.origin; // 使用目前網站的根路徑作為 API 端點
 
 interface DurationSelectorProps {
   chargingStation: ChargingStation;
@@ -75,7 +83,45 @@ const DurationSelector: React.FC<DurationSelectorProps> = ({ chargingStation, se
     setConfirmDialogOpen(true);
   };
 
-  const handleConfirm = () => {
+  const [apiLoading, setApiLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  // 更新充電站資料到 MongoDB
+  const updateStationData = async (updatedStation: ChargingStation) => {
+    try {
+      console.log(`嘗試更新充電站資料到 ${API_URL}/stations/1`);
+      console.log('發送資料:', JSON.stringify(updatedStation, null, 2));
+      
+      const response = await axios.put(`${API_URL}/stations/1`, updatedStation, {
+        timeout: 10000, // 10 秒超時
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+      
+      console.log('更新成功:', response.status, response.data);
+      setApiError(null);
+      return true;
+    } catch (err: any) {
+      console.error('更新充電站資料失敗:', err);
+      
+      if (err.response) {
+        console.error('回應狀態:', err.response.status);
+        console.error('回應資料:', err.response.data);
+        setApiError(`更新失敗 (${err.response.status}): 請確認 API server 是否正確設定`);
+      } else if (err.request) {
+        console.error('無回應:', err.request);
+        setApiError('更新失敗: 無法連接到 API server');
+      } else {
+        console.error('請求錯誤:', err.message);
+        setApiError(`更新失敗: ${err.message}`);
+      }
+      return false;
+    }
+  };
+
+  const handleConfirm = async () => {
     console.log('確認充電', { queueInfo, stationId, duration });
     
     if (!queueInfo) {
@@ -89,6 +135,9 @@ const DurationSelector: React.FC<DurationSelectorProps> = ({ chargingStation, se
       return;
     }
 
+    setApiLoading(true);
+    setApiError(null);
+
     const newRequest: ChargingRequest = {
       parkingSpotId: stationId,
       status: queueInfo.isQueuing ? 'waiting' : 'charging',
@@ -100,9 +149,11 @@ const DurationSelector: React.FC<DurationSelectorProps> = ({ chargingStation, se
 
     console.log('建立新請求', newRequest);
 
+    let updatedStation: ChargingStation;
+
     if (!queueInfo.isQueuing) {
       // Start charging immediately
-      setChargingStation({
+      updatedStation = {
         ...chargingStation,
         currentRequest: { 
           ...newRequest, 
@@ -111,23 +162,38 @@ const DurationSelector: React.FC<DurationSelectorProps> = ({ chargingStation, se
         },
         queue: Array.isArray(chargingStation.queue) ? chargingStation.queue : [], // 確保 queue 是陣列
         isAvailable: false
-      });
+      };
       console.log('開始充電', { newRequest, duration });
     } else {
       // Add to queue
       const safeQueue = Array.isArray(chargingStation.queue) ? chargingStation.queue : [];
-      setChargingStation({
+      updatedStation = {
         ...chargingStation,
         currentRequest: chargingStation.currentRequest, // 確保保留當前請求
         queue: [...safeQueue, newRequest],
         isAvailable: false
-      });
+      };
       console.log('加入佇列', { queueLength: safeQueue.length + 1 });
     }
 
-    setConfirmDialogOpen(false);
-    console.log('導航到狀態頁面', `/status/${stationId}`);
-    navigate(`/status/${stationId}`);
+    // 先更新本地狀態
+    setChargingStation(updatedStation);
+
+    // 然後將數據保存到 MongoDB
+    const success = await updateStationData(updatedStation);
+    
+    setApiLoading(false);
+    
+    if (success) {
+      setConfirmDialogOpen(false);
+      console.log('導航到狀態頁面', `/status/${stationId}`);
+      navigate(`/status/${stationId}`);
+    } else {
+      // 即使 API 請求失敗，也導航到狀態頁面，因為本地狀態已經更新
+      setConfirmDialogOpen(false);
+      console.log('導航到狀態頁面（即使 API 失敗）', `/status/${stationId}`);
+      navigate(`/status/${stationId}`);
+    }
   };
 
   const handleDurationChange = (event: React.ChangeEvent<HTMLInputElement>) => {
