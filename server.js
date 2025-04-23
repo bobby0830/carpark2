@@ -15,7 +15,15 @@ app.use(cors());
 app.use(express.json());
 
 // 連接到 MongoDB
-mongoose.connect(process.env.MONGODB_URI)
+// 支持兩種環境變數名稱（MONGODB_URI 和 MONGODB_URL）
+const mongoURI = process.env.MONGODB_URI || process.env.MONGODB_URL;
+
+if (!mongoURI) {
+  console.error('錯誤: 缺少 MongoDB 連接字串。請設置 MONGODB_URI 或 MONGODB_URL 環境變數。');
+  process.exit(1);
+}
+
+mongoose.connect(mongoURI)
   .then(() => console.log('已連接到 MongoDB Atlas'))
   .catch(err => console.error('MongoDB 連接錯誤:', err));
 
