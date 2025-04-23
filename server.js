@@ -23,9 +23,30 @@ if (!mongoURI) {
   process.exit(1);
 }
 
-mongoose.connect(mongoURI)
-  .then(() => console.log('已連接到 MongoDB Atlas'))
-  .catch(err => console.error('MongoDB 連接錯誤:', err));
+// 初始化充電站數據
+async function initializeChargingStation() {
+  try {
+    console.log('正在檢查充電站數據...');
+    const station = await ChargingStation.findById('1');
+    
+    if (!station) {
+      console.log('充電站數據不存在，創建初始數據...');
+      const newStation = new ChargingStation({
+        _id: '1',
+        currentRequest: undefined,
+        queue: [],
+        isAvailable: true
+      });
+      
+      await newStation.save();
+      console.log('充電站初始數據已創建:', newStation);
+    } else {
+      console.log('充電站數據已存在:', station);
+    }
+  } catch (err) {
+    console.error('初始化充電站數據錯誤:', err);
+  }
+}
 
 // 定義充電站模型
 const chargingStationSchema = new mongoose.Schema({
@@ -58,9 +79,13 @@ const ChargingStation = mongoose.model('ChargingStation', chargingStationSchema)
 // 定義處理充電站請求的函數
 const handleGetStation = async (req, res) => {
   try {
+    console.log(`收到獲取充電站請求，ID: ${req.params.id}`);
+    
     let station = await ChargingStation.findById(req.params.id);
+    console.log('資料庫查詢結果:', station);
     
     if (!station) {
+      console.log('充電站不存在，創建新的充電站');
       // 如果不存在，創建一個新的
       station = new ChargingStation({
         _id: req.params.id,
@@ -68,30 +93,44 @@ const handleGetStation = async (req, res) => {
         queue: [],
         isAvailable: true
       });
+      
+      console.log('嘗試保存新充電站:', station);
       await station.save();
+      console.log('充電站已成功保存');
     }
     
+    console.log('返回充電站資料:', station);
     res.json(station);
   } catch (err) {
     console.error('獲取充電站錯誤:', err);
-    res.status(500).json({ message: '伺服器錯誤' });
+    res.status(500).json({ message: '伺服器錯誤', error: err.message });
   }
 };
 
+// 定義處理更新充電站的函數
 const handleUpdateStation = async (req, res) => {
   try {
-    console.log('收到更新請求:', req.params.id, req.body);
-    const station = await ChargingStation.findByIdAndUpdate(
+    console.log(`收到更新充電站請求，ID: ${req.params.id}`);
+    console.log('請求體:', JSON.stringify(req.body, null, 2));
+    
+    const updatedStation = await ChargingStation.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true, upsert: true }
+      { new: true, runValidators: true }
     );
     
-    console.log('更新後的充電站:', station);
-    res.json(station);
+    console.log('更新後的充電站:', updatedStation);
+    
+    if (!updatedStation) {
+      console.log('充電站不存在，返回 404');
+      return res.status(404).json({ message: '充電站不存在' });
+    }
+    
+    console.log('成功更新充電站，返回更新後的資料');
+    res.json(updatedStation);
   } catch (err) {
     console.error('更新充電站錯誤:', err);
-    res.status(500).json({ message: '伺服器錯誤' });
+    res.status(500).json({ message: '伺服器錯誤', error: err.message });
   }
 };
 
@@ -118,7 +157,39 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// 啟動服務器
-app.listen(PORT, () => {
-  console.log(`服務器運行在端口 ${PORT}`);
-});
+// 在連接到 MongoDB 後啟動伺服器
+mongoose.connect(mongoURI)
+  .then(async () => {
+    console.log('已連接到 MongoDB Atlas');
+    
+    // 初始化充電站數據
+    try {
+      console.log('正在檢查充電站數據...');
+      const station = await ChargingStation.findById('1');
+      
+      if (!station) {
+        console.log('充電站數據不存在，創建初始數據...');
+        const newStation = new ChargingStation({
+          _id: '1',
+          currentRequest: undefined,
+          queue: [],
+          isAvailable: true
+        });
+        
+        await newStation.save();
+        console.log('充電站初始數據已創建:', newStation);
+      } else {
+        console.log('充電站數據已存在:', station);
+      }
+    } catch (err) {
+      console.error('初始化充電站數據錯誤:', err);
+    }
+    
+    // 啟動服務器
+    app.listen(PORT, () => {
+      console.log(`服務器運行在端口 ${PORT}`);
+    });
+  })
+  .catch(err => {
+    console.error('連接到 MongoDB 錯誤:', err);
+  });
