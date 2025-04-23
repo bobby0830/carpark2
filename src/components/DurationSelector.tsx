@@ -35,21 +35,38 @@ const DurationSelector: React.FC<DurationSelectorProps> = ({ chargingStation, se
   } | null>(null);
 
   const handleDurationSubmit = () => {
+    console.log('確認充電時間', { duration, chargingStation });
+    
     const durationNum = Number(duration);
     if (isNaN(durationNum) || durationNum <= 0 || durationNum > 120) {
       setError('充電時間必須在 1 至 120 分鐘之間');
       return;
     }
 
+    // 確保充電站數據存在且有正確的結構
+    if (!chargingStation) {
+      console.error('充電站數據不存在');
+      setError('無法讀取充電站狀態，請重試');
+      return;
+    }
+
     // Calculate queue information
     const isQueuing = !!chargingStation.currentRequest;
-    const queuePosition = chargingStation.queue.length + (isQueuing ? 1 : 0);
-    const estimatedWaitTime = isQueuing ? (
-      // Sum up waiting time from current request and queue
-      (chargingStation.currentRequest?.remainingTime ?? chargingStation.currentRequest?.requestedChargingTime ?? 0) +
-      chargingStation.queue.reduce((acc, curr) => acc + curr.requestedChargingTime, 0)
-    ) : 0;
+    const queuePosition = Array.isArray(chargingStation.queue) ? chargingStation.queue.length + (isQueuing ? 1 : 0) : (isQueuing ? 1 : 0);
+    
+    let estimatedWaitTime = 0;
+    if (isQueuing) {
+      // 先加上當前請求的剩餘時間
+      estimatedWaitTime += (chargingStation.currentRequest?.remainingTime ?? chargingStation.currentRequest?.requestedChargingTime ?? 0);
+      
+      // 再加上佇列中所有請求的時間
+      if (Array.isArray(chargingStation.queue) && chargingStation.queue.length > 0) {
+        estimatedWaitTime += chargingStation.queue.reduce((acc, curr) => acc + (curr.requestedChargingTime || 0), 0);
+      }
+    }
 
+    console.log('計算佇列信息', { isQueuing, queuePosition, estimatedWaitTime });
+    
     setQueueInfo({
       isQueuing,
       queuePosition,
@@ -59,16 +76,29 @@ const DurationSelector: React.FC<DurationSelectorProps> = ({ chargingStation, se
   };
 
   const handleConfirm = () => {
-    if (!queueInfo) return;
+    console.log('確認充電', { queueInfo, stationId, duration });
+    
+    if (!queueInfo) {
+      console.error('佇列信息不存在');
+      return;
+    }
+
+    // 確保 stationId 存在
+    if (!stationId) {
+      console.error('車位編號不存在');
+      return;
+    }
 
     const newRequest: ChargingRequest = {
-      parkingSpotId: stationId || '',
+      parkingSpotId: stationId,
       status: queueInfo.isQueuing ? 'waiting' : 'charging',
       requestedChargingTime: Number(duration),
       queuePosition: queueInfo.queuePosition,
       timestamp: new Date(),
       totalWaitingTime: queueInfo.estimatedWaitTime
     };
+
+    console.log('建立新請求', newRequest);
 
     if (!queueInfo.isQueuing) {
       // Start charging immediately
@@ -79,18 +109,24 @@ const DurationSelector: React.FC<DurationSelectorProps> = ({ chargingStation, se
           status: 'charging',
           remainingTime: Number(duration)
         },
+        queue: Array.isArray(chargingStation.queue) ? chargingStation.queue : [], // 確保 queue 是陣列
         isAvailable: false
       });
+      console.log('開始充電', { newRequest, duration });
     } else {
       // Add to queue
+      const safeQueue = Array.isArray(chargingStation.queue) ? chargingStation.queue : [];
       setChargingStation({
         ...chargingStation,
-        queue: [...chargingStation.queue, newRequest],
+        currentRequest: chargingStation.currentRequest, // 確保保留當前請求
+        queue: [...safeQueue, newRequest],
         isAvailable: false
       });
+      console.log('加入佇列', { queueLength: safeQueue.length + 1 });
     }
 
     setConfirmDialogOpen(false);
+    console.log('導航到狀態頁面', `/status/${stationId}`);
     navigate(`/status/${stationId}`);
   };
 

@@ -18,15 +18,36 @@ const Status: React.FC<StatusProps> = ({ chargingStation, setChargingStation }) 
 
   // Global countdown effect for charging station
   useEffect(() => {
+    console.log('全局計時器初始化');
+    
     const timer = setInterval(() => {
       setChargingStation((prev: ChargingStation) => {
-        if (!prev.currentRequest || prev.currentRequest.status !== 'charging') return prev;
+        // 確保 prev 存在且有正確的結構
+        if (!prev) {
+          console.error('充電站數據不存在');
+          return prev;
+        }
+        
+        if (!prev.currentRequest || prev.currentRequest.status !== 'charging') {
+          return prev;
+        }
 
         // Update remaining time for current charging request
         const currentTime = prev.currentRequest.remainingTime ?? prev.currentRequest.requestedChargingTime;
         const newRemainingTime = Math.max(0, currentTime - (1/60));
 
         if (newRemainingTime === 0) {
+          // 確保 queue 存在且是陣列
+          if (!Array.isArray(prev.queue)) {
+            console.error('佇列不是陣列');
+            return {
+              ...prev,
+              currentRequest: undefined,
+              queue: [],
+              isAvailable: true
+            };
+          }
+          
           const [nextInQueue, ...remainingQueue] = prev.queue;
           
           if (nextInQueue) {
@@ -52,6 +73,19 @@ const Status: React.FC<StatusProps> = ({ chargingStation, setChargingStation }) 
         }
 
         // Continue charging current request
+        // 確保 queue 存在且是陣列
+        if (!Array.isArray(prev.queue)) {
+          return {
+            ...prev,
+            currentRequest: {
+              ...prev.currentRequest,
+              remainingTime: newRemainingTime
+            },
+            queue: [],
+            isAvailable: false
+          };
+        }
+        
         return {
           ...prev,
           currentRequest: {
@@ -63,7 +97,7 @@ const Status: React.FC<StatusProps> = ({ chargingStation, setChargingStation }) 
             const totalWaitingTime = newRemainingTime + 
               prev.queue
                 .filter(r => r.status === 'waiting' && r.queuePosition < req.queuePosition)
-                .reduce((acc, r) => acc + r.requestedChargingTime, 0);
+                .reduce((acc, r) => acc + (r.requestedChargingTime || 0), 0);
             return { ...req, totalWaitingTime };
           })
         };
@@ -75,13 +109,28 @@ const Status: React.FC<StatusProps> = ({ chargingStation, setChargingStation }) 
 
   // Sync with database every second
   useEffect(() => {
-    if (!stationId) return;
+    if (!stationId) {
+      console.log('無車位編號');
+      return;
+    }
+
+    console.log('同步資料庫狀態', { stationId, chargingStation });
 
     const syncWithDatabase = () => {
+      // 確保 chargingStation 和 queue 存在
+      if (!chargingStation) {
+        console.error('充電站數據不存在');
+        return;
+      }
+
       // Find the request in the charging station
       const dbRequest = chargingStation.currentRequest?.parkingSpotId === stationId
         ? chargingStation.currentRequest
-        : chargingStation.queue.find(r => r.parkingSpotId === stationId);
+        : (Array.isArray(chargingStation.queue) 
+           ? chargingStation.queue.find(r => r.parkingSpotId === stationId)
+           : undefined);
+
+      console.log('找到請求', { dbRequest });
 
       if (dbRequest) {
         setCurrentRequest(dbRequest);
