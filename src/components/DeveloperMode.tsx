@@ -160,6 +160,12 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
     };
   }, []);
 
+  // 在組件加載時從 API 獲取充電站資料
+  useEffect(() => {
+    console.log('DeveloperMode 組件加載，開始獲取充電站資料');
+    fetchStationData();
+  }, []);
+
   // 計時器更新充電狀態
   useEffect(() => {
     const timer = setInterval(() => {
