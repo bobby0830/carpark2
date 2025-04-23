@@ -62,10 +62,21 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
       setLoading(true);
       setError(null);
       
+      // 打印更詳細的調試信息
+      console.log('當前環境:', process.env.NODE_ENV);
+      console.log('當前主機名:', window.location.hostname);
+      console.log('完整的 URL:', window.location.href);
       console.log(`嘗試連接到 API: ${API_URL}/stations/1`);
       
+      // 直接嘗試使用完整的 URL
+      const apiUrl = window.location.hostname === 'localhost' 
+        ? 'http://localhost:5000/stations/1' 
+        : `${window.location.origin}/api/stations/1`;
+      
+      console.log('實際使用的 API URL:', apiUrl);
+      
       // 添加超時設定
-      const response = await axios.get(`${API_URL}/stations/1`, { 
+      const response = await axios.get(apiUrl, { 
         timeout: 10000, // 10 秒超時
         headers: {
           'Content-Type': 'application/json',
@@ -73,16 +84,19 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
         }
       });
       
-      console.log('取得回應:', response.status, response.data);
+      console.log('取得回應:', response.status);
+      console.log('回應資料:', JSON.stringify(response.data, null, 2));
       
       if (response.data) {
+        console.log('設置充電站資料:', JSON.stringify(response.data, null, 2));
         setChargingStation(response.data);
-        console.log('成功設定充電站資料');
+      } else {
+        console.error('無效的回應資料');
+        setError('無效的回應資料');
       }
     } catch (err: any) {
       console.error('獲取充電站資料失敗:', err);
       
-      // 顯示更詳細的錯誤訊息
       if (err.response) {
         // 服務器回應了，但狀態碼不是 2xx
         console.error('回應狀態:', err.response.status);
@@ -97,6 +111,14 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
         console.error('請求錯誤:', err.message);
         setError(`請求錯誤: ${err.message}`);
       }
+      
+      // 嘗試創建一個空的充電站對象
+      console.log('嘗試創建一個空的充電站對象');
+      setChargingStation({
+        currentRequest: undefined,
+        queue: [],
+        isAvailable: true
+      });
     } finally {
       setLoading(false);
     }
@@ -105,10 +127,15 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
   // 更新充電站資料
   const updateStationData = async (updatedStation: ChargingStation) => {
     try {
-      console.log(`嘗試更新充電站資料到 ${API_URL}/stations/1`);
+      // 直接嘗試使用完整的 URL
+      const apiUrl = window.location.hostname === 'localhost' 
+        ? 'http://localhost:5000/stations/1' 
+        : `${window.location.origin}/api/stations/1`;
+      
+      console.log(`嘗試更新充電站資料到 ${apiUrl}`);
       console.log('發送資料:', JSON.stringify(updatedStation, null, 2));
       
-      const response = await axios.put(`${API_URL}/stations/1`, updatedStation, {
+      const response = await axios.put(apiUrl, updatedStation, {
         timeout: 10000, // 10 秒超時
         headers: {
           'Content-Type': 'application/json',
@@ -116,13 +143,13 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
         }
       });
       
-      console.log('更新成功:', response.status, response.data);
+      console.log('更新成功:', response.status);
+      console.log('回應資料:', JSON.stringify(response.data, null, 2));
       // 更新成功後清除任何先前的錯誤
       setError(null);
     } catch (err: any) {
       console.error('更新充電站資料失敗:', err);
       
-      // 顯示更詳細的錯誤訊息
       if (err.response) {
         // 服務器回應了，但狀態碼不是 2xx
         console.error('回應狀態:', err.response.status);
@@ -261,14 +288,36 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
         isAvailable: true
       };
       
+      // 直接嘗試使用完整的 URL
+      const apiUrl = window.location.hostname === 'localhost' 
+        ? 'http://localhost:5000/stations/1' 
+        : `${window.location.origin}/api/stations/1`;
+      
+      console.log(`嘗試初始化資料庫，API URL: ${apiUrl}`);
+      console.log('發送資料:', JSON.stringify(emptyStation, null, 2));
+      
       // 透過 API 更新資料庫
-      await axios.put(`${API_URL}/stations/1`, emptyStation);
+      const response = await axios.put(apiUrl, emptyStation);
+      console.log('初始化成功:', response.status);
+      console.log('回應資料:', JSON.stringify(response.data, null, 2));
+      
       setChargingStation(emptyStation);
       alert('資料庫已成功初始化！所有裝置都會共用這個資料庫。');
       navigate('/');
-    } catch (err) {
+    } catch (err: any) {
       console.error('初始化資料庫失敗:', err);
-      setError('初始化資料庫失敗，請確認 API server 是否啟動');
+      
+      if (err.response) {
+        console.error('回應狀態:', err.response.status);
+        console.error('回應資料:', err.response.data);
+        setError(`初始化失敗 (${err.response.status}): 請確認 API server 是否正確設定`);
+      } else if (err.request) {
+        console.error('無回應:', err.request);
+        setError('初始化失敗: 無法連接到 API server');
+      } else {
+        console.error('請求錯誤:', err.message);
+        setError(`初始化失敗: ${err.message}`);
+      }
     } finally {
       setLoading(false);
     }
