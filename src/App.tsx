@@ -11,6 +11,7 @@ import './App.css';
 
 function App() {
   const [chargingStation, setChargingStation] = useState<ChargingStation>({
+    currentRequest: undefined,
     queue: [],
     isAvailable: true
   });

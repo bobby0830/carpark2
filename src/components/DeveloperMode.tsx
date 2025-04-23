@@ -164,13 +164,25 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
   useEffect(() => {
     const timer = setInterval(() => {
       setChargingStation(prev => {
-        if (!prev.currentRequest) return prev;
+        // 確保 prev 存在且有正確的結構
+        if (!prev || !prev.currentRequest) return prev;
 
         // Update remaining time for current charging request
         const newRemainingTime = Math.max(0, (prev.currentRequest.remainingTime || prev.currentRequest.requestedChargingTime) - 1/60);
 
         if (newRemainingTime === 0) {
           // If charging is complete, move to next request
+          // 確保 queue 存在
+          if (!prev.queue || !Array.isArray(prev.queue)) {
+            console.error('佇列不存在或不是陣列:', prev.queue);
+            return {
+              ...prev,
+              currentRequest: undefined,
+              queue: [],
+              isAvailable: true
+            };
+          }
+          
           const [nextInQueue, ...remainingQueue] = prev.queue;
           if (nextInQueue) {
             // Start charging the next request
@@ -181,10 +193,10 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
                 status: 'charging' as 'charging', // 明確指定為充電狀態
                 remainingTime: nextInQueue.requestedChargingTime
               },
-              queue: remainingQueue.map(req => ({
+              queue: Array.isArray(remainingQueue) ? remainingQueue.map(req => ({
                 ...req,
                 totalWaitingTime: calculateWaitingTime(req, remainingQueue, nextInQueue)
-              })),
+              })) : [],
               isAvailable: false
             };
             
@@ -357,7 +369,7 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
             </TableRow>
           </TableHead>
           <TableBody>
-            {chargingStation.currentRequest && (
+            {chargingStation.currentRequest ? (
               <TableRow
                 sx={{ 
                   bgcolor: '#e3f2fd',
@@ -371,23 +383,33 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
                 <TableCell sx={{ py: 2 }}>-</TableCell>
                 <TableCell sx={{ py: 2 }}>{formatTime(chargingStation.currentRequest.remainingTime || 0)}</TableCell>
               </TableRow>
-            )}
-            {chargingStation.queue.map((request, index) => (
-              <TableRow 
-                key={request.parkingSpotId}
-                sx={{ 
-                  '&:nth-of-type(odd)': { bgcolor: '#fafafa' },
-                  '&:hover': { bgcolor: '#f5f5f5' }
-                }}
-              >
-                <TableCell sx={{ py: 2 }}>{request.parkingSpotId}</TableCell>
-                <TableCell sx={{ py: 2, color: '#ed6c02' }}>等待中</TableCell>
-                <TableCell sx={{ py: 2 }}>{index + 1}</TableCell>
-                <TableCell sx={{ py: 2 }}>{formatTime(request.requestedChargingTime)}</TableCell>
-                <TableCell sx={{ py: 2 }}>{formatTime(request.totalWaitingTime || 0)}</TableCell>
-                <TableCell sx={{ py: 2 }}>-</TableCell>
+            ) : (
+              <TableRow>
+                <TableCell colSpan={6} sx={{ textAlign: 'center', py: 3, bgcolor: '#f5f5f5' }}>無正在充電的車輛</TableCell>
               </TableRow>
-            ))}
+            )}
+            {chargingStation.queue && chargingStation.queue.length > 0 ? (
+              chargingStation.queue.map((request, index) => (
+                <TableRow 
+                  key={request.parkingSpotId}
+                  sx={{ 
+                    '&:nth-of-type(odd)': { bgcolor: '#fafafa' },
+                    '&:hover': { bgcolor: '#f5f5f5' }
+                  }}
+                >
+                  <TableCell sx={{ py: 2 }}>{request.parkingSpotId}</TableCell>
+                  <TableCell sx={{ py: 2, color: '#ed6c02' }}>等待中</TableCell>
+                  <TableCell sx={{ py: 2 }}>{index + 1}</TableCell>
+                  <TableCell sx={{ py: 2 }}>{formatTime(request.requestedChargingTime)}</TableCell>
+                  <TableCell sx={{ py: 2 }}>{formatTime(request.totalWaitingTime || 0)}</TableCell>
+                  <TableCell sx={{ py: 2 }}>-</TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={6} sx={{ textAlign: 'center', py: 3 }}>無等待中的充電請求</TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </TableContainer>
