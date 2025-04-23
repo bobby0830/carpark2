@@ -22,7 +22,10 @@ import { formatTime } from '../utils/timeFormat';
 import axios from 'axios';
 
 // API 伺服器基本 URL
-const API_URL = 'http://localhost:5000/api';
+// 判斷環境，如果是生產環境則使用雲端 API，否則使用本地開發環境
+const API_URL = window.location.hostname === 'localhost' 
+  ? 'http://localhost:5000/api' 
+  : 'https://carpark2-api.vercel.app/api'; // 更改為你的 API 伺服器雲端網址
 
 interface DeveloperModeProps {
   chargingStation: ChargingStation;

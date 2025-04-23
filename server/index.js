@@ -6,7 +6,14 @@ const cors = require('cors');
 const path = require('path');
 
 const app = express();
-app.use(cors());
+
+// 設定 CORS，允許所有來源存取
+app.use(cors({
+  origin: '*', // 允許所有來源
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
 // 連接 MongoDB Atlas
