@@ -26,6 +26,8 @@ const Welcome: React.FC<WelcomeProps> = ({ chargingStation }) => {
   }, [stationId]);
 
   const handleNext = () => {
+    console.log('點擊下一步按鈕', { parkingSpotId });
+    
     if (!parkingSpotId) {
       setError('請輸入車位編號');
       return;
@@ -37,15 +39,20 @@ const Welcome: React.FC<WelcomeProps> = ({ chargingStation }) => {
     }
 
     // 檢查該車位是否已經在使用中
-    const isSpotInUse = chargingStation.currentRequest?.parkingSpotId === parkingSpotId ||
-      chargingStation.queue.some(req => req.parkingSpotId === parkingSpotId);
+    // 確保 queue 存在且是陣列
+    const isSpotInUse = 
+      (chargingStation.currentRequest?.parkingSpotId === parkingSpotId) || 
+      (Array.isArray(chargingStation.queue) && 
+       chargingStation.queue.some(req => req.parkingSpotId === parkingSpotId));
 
     if (isSpotInUse) {
       setError('此車位已在充電或等待中');
       return;
     }
 
+    // 清除錯誤並導航到下一頁
     setError('');
+    console.log('導航到:', `/duration/${parkingSpotId}`);
     navigate(`/duration/${parkingSpotId}`);
   };
 
@@ -89,7 +96,7 @@ const Welcome: React.FC<WelcomeProps> = ({ chargingStation }) => {
           fullWidth
           variant="contained"
           onClick={handleNext}
-          disabled={!parkingSpotId || !!error}
+          disabled={!parkingSpotId} // 只在沒有輸入車位編號時禁用按鈕
         >
           下一步
         </Button>
