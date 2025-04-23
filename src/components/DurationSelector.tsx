@@ -128,67 +128,136 @@ const DurationSelector: React.FC<DurationSelectorProps> = ({ chargingStation, se
   };
 
   const handleConfirm = async () => {
-    console.log('確認充電', { queueInfo, stationId, duration });
-    
-    if (!queueInfo) {
-      console.error('佇列信息不存在');
-      return;
-    }
-
-    // 確保 stationId 存在
-    if (!stationId) {
-      console.error('車位編號不存在');
-      return;
-    }
-
     setApiLoading(true);
     setApiError(null);
+    
+    console.log('===== 開始處理充電請求確認 =====');
+    console.log('當前時間:', new Date().toISOString());
+    
+    if (!stationId) {
+      console.error('車位編號不存在');
+      setApiError('車位編號不存在');
+      setApiLoading(false);
+      return;
+    }
+    console.log('車位編號:', stationId);
 
+    const durationNum = Number(duration);
+    if (isNaN(durationNum) || durationNum <= 0 || durationNum > 120) {
+      console.error('充電時間無效', duration);
+      setApiError('充電時間必須在 1 至 120 分鐘之間');
+      setApiLoading(false);
+      return;
+    }
+    console.log('充電時間 (分鐘):', durationNum);
+
+    // 創建新的充電請求
     const newRequest: ChargingRequest = {
       parkingSpotId: stationId,
-      status: queueInfo.isQueuing ? 'waiting' : 'charging',
-      requestedChargingTime: Number(duration),
-      queuePosition: queueInfo.queuePosition,
+      status: 'waiting',
+      requestedChargingTime: durationNum,
+      queuePosition: 0,
       timestamp: new Date(),
-      totalWaitingTime: queueInfo.estimatedWaitTime
+      totalWaitingTime: 0
     };
 
-    console.log('建立新請求', newRequest);
+    console.log('創建新的充電請求:', JSON.stringify(newRequest, null, 2));
 
+    // 確保充電站數據存在且有正確的結構
+    if (!chargingStation) {
+      console.error('充電站數據不存在');
+      setApiError('無法讀取充電站狀態，請重試');
+      setApiLoading(false);
+      return;
+    }
+    console.log('當前充電站狀態:', JSON.stringify(chargingStation, null, 2));
+
+    // 確保 queue 存在且是陣列
+    const safeQueue = Array.isArray(chargingStation.queue) ? chargingStation.queue : [];
+    console.log('當前佇列長度:', safeQueue.length);
+
+    // 更新充電站狀態
     let updatedStation: ChargingStation;
 
-    if (!queueInfo.isQueuing) {
-      // Start charging immediately
+    // 如果充電站可用且沒有當前請求，則直接開始充電
+    if (chargingStation.isAvailable && !chargingStation.currentRequest) {
+      console.log('充電站可用，直接開始充電');
       updatedStation = {
         ...chargingStation,
-        currentRequest: { 
-          ...newRequest, 
+        currentRequest: {
+          ...newRequest,
           status: 'charging',
-          remainingTime: Number(duration)
+          remainingTime: durationNum
         },
-        queue: Array.isArray(chargingStation.queue) ? chargingStation.queue : [], // 確保 queue 是陣列
+        queue: safeQueue,
         isAvailable: false
       };
-      console.log('開始充電', { newRequest, duration });
+      console.log('更新後的充電站狀態 (直接充電):', JSON.stringify(updatedStation, null, 2));
     } else {
-      // Add to queue
-      const safeQueue = Array.isArray(chargingStation.queue) ? chargingStation.queue : [];
+      // 否則加入佇列
+      console.log('充電站忙碌，加入佇列');
+      newRequest.queuePosition = safeQueue.length + 1;
+      
+      // 計算總等待時間
+      if (chargingStation.currentRequest) {
+        newRequest.totalWaitingTime = (chargingStation.currentRequest.remainingTime || chargingStation.currentRequest.requestedChargingTime);
+        console.log('當前請求剩餘時間:', newRequest.totalWaitingTime);
+        
+        // 加上佇列中所有請求的時間
+        if (safeQueue.length > 0) {
+          let queueTime = 0;
+          safeQueue.forEach(req => {
+            if (req.status === 'waiting') {
+              queueTime += req.requestedChargingTime;
+            }
+          });
+          newRequest.totalWaitingTime += queueTime;
+          console.log('佇列中的請求總時間:', queueTime);
+        }
+        console.log('計算後的總等待時間:', newRequest.totalWaitingTime);
+      }
+      
       updatedStation = {
         ...chargingStation,
         currentRequest: chargingStation.currentRequest, // 確保保留當前請求
         queue: [...safeQueue, newRequest],
         isAvailable: false
       };
-      console.log('加入佇列', { queueLength: safeQueue.length + 1 });
+      console.log('更新後的充電站狀態 (加入佇列):', JSON.stringify(updatedStation, null, 2));
     }
 
     // 先更新本地狀態
+    console.log('更新本地狀態...');
     setChargingStation(updatedStation);
+    console.log('本地狀態已更新');
 
     // 然後將數據保存到 MongoDB
+    console.log('開始保存到 MongoDB...');
     const success = await updateStationData(updatedStation);
+    console.log('MongoDB 保存結果:', success ? '成功' : '失敗');
+    
+    // 保存後再次檢查數據庫中的數據
+    try {
+      const apiUrl = window.location.hostname === 'localhost' 
+        ? 'http://localhost:5000/stations/1' 
+        : `${window.location.origin}/api/stations/1`;
+      
+      console.log(`保存後檢查數據庫，從 ${apiUrl} 獲取數據...`);
+      const checkResponse = await axios.get(apiUrl, {
+        timeout: 10000,
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      console.log('數據庫中的數據:', JSON.stringify(checkResponse.data, null, 2));
+    } catch (err) {
+      console.error('檢查數據庫失敗:', err);
+    }
     
     setApiLoading(false);
+    console.log('API 載入狀態已重置');
     
     if (success) {
       setConfirmDialogOpen(false);
@@ -200,6 +269,8 @@ const DurationSelector: React.FC<DurationSelectorProps> = ({ chargingStation, se
       console.log('導航到狀態頁面（即使 API 失敗）', `/status/${stationId}`);
       navigate(`/status/${stationId}`);
     }
+    
+    console.log('===== 充電請求處理完成 =====');
   };
 
   const handleDurationChange = (event: React.ChangeEvent<HTMLInputElement>) => {
