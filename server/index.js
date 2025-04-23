@@ -1,5 +1,14 @@
 // 基本 Express + Mongoose API server（不更動資料邏輯）
-require('dotenv').config({ path: '../.env' });
+// 先檢查是否在 Vercel 環境中
+const isVercel = process.env.VERCEL === '1';
+
+// 在 Vercel 環境中使用環境變數，否則使用本地 .env 檔案
+if (!isVercel) {
+  require('dotenv').config({ path: '../.env' });
+} else {
+  require('dotenv').config();
+}
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -26,7 +35,8 @@ require('./models/ChargingStation');
 require('./models/ChargingRequest');
 
 // 引入 API 路由
-app.use('/api', require('./routes/api'));
+// 在 Vercel 上直接使用根路徑，不需要 /api 前綴
+app.use('/', require('./routes/api'));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`API Server running on port ${PORT}`));

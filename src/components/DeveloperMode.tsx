@@ -25,7 +25,7 @@ import axios from 'axios';
 // 判斷環境，如果是生產環境則使用雲端 API，否則使用本地開發環境
 const API_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:5000/api' 
-  : 'https://carpark2-api.vercel.app/api'; // 使用新部署的 API server 網址
+  : 'https://carpark2-api.vercel.app'; // Vercel 部署的 API 不需要 /api 前綴
 
 interface DeveloperModeProps {
   chargingStation: ChargingStation;
