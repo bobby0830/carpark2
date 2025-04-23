@@ -5,6 +5,7 @@ import DurationSelector from './components/DurationSelector';
 import Status from './components/Status';
 import DeveloperMode from './components/DeveloperMode';
 import QRCodeGenerator from './components/QRCodeGenerator';
+import ErrorBoundary from './components/ErrorBoundary';
 import { ChargingStation, ChargingRequest } from './types/types';
 import './App.css';
 
@@ -24,16 +25,18 @@ function App() {
   }, []);
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Welcome chargingStation={chargingStation} />} />
-        <Route path="/spot/:stationId?" element={<Welcome chargingStation={chargingStation} />} />
-        <Route path="/duration/:stationId" element={<DurationSelector chargingStation={chargingStation} setChargingStation={setChargingStation} />} />
-        <Route path="/status/:stationId" element={<Status chargingStation={chargingStation} setChargingStation={setChargingStation} />} />
-        <Route path="/developer" element={<DeveloperMode chargingStation={chargingStation} setChargingStation={setChargingStation} />} />
-        <Route path="/qrcodes" element={<QRCodeGenerator />} />
-      </Routes>
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Welcome chargingStation={chargingStation} />} />
+          <Route path="/spot/:stationId?" element={<Welcome chargingStation={chargingStation} />} />
+          <Route path="/duration/:stationId" element={<DurationSelector chargingStation={chargingStation} setChargingStation={setChargingStation} />} />
+          <Route path="/status/:stationId" element={<Status chargingStation={chargingStation} setChargingStation={setChargingStation} />} />
+          <Route path="/developer" element={<DeveloperMode chargingStation={chargingStation} setChargingStation={setChargingStation} />} />
+          <Route path="/qrcodes" element={<QRCodeGenerator />} />
+        </Routes>
+      </Router>
+    </ErrorBoundary>
   );
 }
 

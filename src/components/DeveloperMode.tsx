@@ -142,7 +142,22 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
 
   // 初始載入資料
   useEffect(() => {
+    console.log('開發者模式組件已載入');
+    console.log('API URL:', API_URL);
+    console.log('嘗試載入充電站資料...');
     fetchStationData();
+
+    // 添加一個備用的錯誤處理
+    window.onerror = (message, source, lineno, colno, error) => {
+      console.error('全局錯誤:', message, source, lineno, colno, error);
+      setError(`頁面發生錯誤: ${message}`);
+      return false;
+    };
+
+    return () => {
+      // 清除錯誤處理
+      window.onerror = null;
+    };
   }, []);
 
   // 計時器更新充電狀態
