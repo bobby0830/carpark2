@@ -193,8 +193,19 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
     fetchStationData();
   }, []);
 
-  // 計時器更新充電狀態
+  // 計時器更新充電狀態 - 只在非開發者模式下使用
   useEffect(() => {
+    // 判斷當前是否在開發者模式頁面
+    const isDeveloperMode = window.location.pathname.includes('/developer');
+    
+    // 如果是開發者模式，不啟動計時器
+    if (isDeveloperMode) {
+      console.log('在開發者模式中，不啟動充電狀態更新計時器');
+      return;
+    }
+    
+    console.log('在非開發者模式中，啟動充電狀態更新計時器');
+    
     const timer = setInterval(() => {
       setChargingStation(prev => {
         // 確保 prev 存在且有正確的結構
@@ -219,34 +230,23 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
           const [nextInQueue, ...remainingQueue] = prev.queue;
           if (nextInQueue) {
             // Start charging the next request
-            const updatedStation: ChargingStation = {
+            return {
               ...prev,
               currentRequest: {
                 ...nextInQueue,
-                status: 'charging' as 'charging', // 明確指定為充電狀態
+                status: 'charging',
                 remainingTime: nextInQueue.requestedChargingTime
               },
-              queue: Array.isArray(remainingQueue) ? remainingQueue.map(req => ({
-                ...req,
-                totalWaitingTime: calculateWaitingTime(req, remainingQueue, nextInQueue)
-              })) : [],
+              queue: remainingQueue,
               isAvailable: false
             };
-            
-            // 更新到資料庫
-            updateStationData(updatedStation);
-            return updatedStation;
           } else {
             // No more requests in queue
-            const updatedStation: ChargingStation = {
+            return {
               ...prev,
               currentRequest: undefined,
               isAvailable: true
             };
-            
-            // 更新到資料庫
-            updateStationData(updatedStation);
-            return updatedStation;
           }
         }
 
