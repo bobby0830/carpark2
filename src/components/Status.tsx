@@ -198,22 +198,39 @@ const Status: React.FC<StatusProps> = ({ chargingStation, setChargingStation }) 
     return () => clearInterval(timer);
   }, [chargingStation, stationId]);
 
-  // Helper function to calculate waiting time (in seconds)
+  // Helper function to calculate waiting time (in minutes)
   const calculateWaitingTime = (request: ChargingRequest, queue: ChargingRequest[], currentRequest: ChargingRequest): number => {
     if (request.status !== 'waiting') return 0;
+    if (!currentRequest) return 0;
     if (request.parkingSpotId === currentRequest.parkingSpotId) return 0;
 
-    // Convert minutes to seconds for the current request
-    let totalWaitingTime = currentRequest.remainingTime || (currentRequest.requestedChargingTime * 60);
-    const requestIndex = queue.findIndex(r => r.parkingSpotId === request.parkingSpotId);
-    const requestsAhead = queue.slice(0, requestIndex);
+    console.log('計算等待時間，請求:', request.parkingSpotId);
+    console.log('當前請求:', currentRequest.parkingSpotId);
+    console.log('佇列長度:', queue.length);
 
+    // 使用當前請求的剩餘時間或請求時間（單位：分鐘）
+    let totalWaitingTime = currentRequest.remainingTime || currentRequest.requestedChargingTime;
+    console.log('當前請求時間 (分鐘):', totalWaitingTime);
+
+    // 找出請求在佇列中的位置
+    const requestIndex = queue.findIndex(r => r.parkingSpotId === request.parkingSpotId);
+    console.log('請求在佇列中的位置:', requestIndex);
+
+    // 計算前面所有請求的時間
+    const requestsAhead = queue.slice(0, requestIndex);
+    console.log('前面的請求數量:', requestsAhead.length);
+
+    let queueTime = 0;
     requestsAhead.forEach(r => {
       if (r.status === 'waiting') {
-        // Convert minutes to seconds for each request in queue
-        totalWaitingTime += r.requestedChargingTime;
+        queueTime += r.requestedChargingTime;
+        console.log(`前面的請求 ${r.parkingSpotId} 時間:`, r.requestedChargingTime);
       }
     });
+    console.log('佇列中前面請求的總時間 (分鐘):', queueTime);
+
+    totalWaitingTime += queueTime;
+    console.log('總等待時間 (分鐘):', totalWaitingTime);
 
     return totalWaitingTime;
   };
