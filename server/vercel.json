@@ -11,8 +11,5 @@
       "src": "/(.*)",
       "dest": "/index.js"
     }
-  ],
-  "env": {
-    "MONGODB_URI": "mongodb+srv://opdog0830:984657321yiu@cluster0.arr0odh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-  }
+  ]
 }
