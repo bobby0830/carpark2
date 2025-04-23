@@ -61,13 +61,42 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
     try {
       setLoading(true);
       setError(null);
-      const response = await axios.get(`${API_URL}/stations/1`); // 假設 ID 為 1
+      
+      console.log(`嘗試連接到 API: ${API_URL}/stations/1`);
+      
+      // 添加超時設定
+      const response = await axios.get(`${API_URL}/stations/1`, { 
+        timeout: 10000, // 10 秒超時
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+      
+      console.log('取得回應:', response.status, response.data);
+      
       if (response.data) {
         setChargingStation(response.data);
+        console.log('成功設定充電站資料');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('獲取充電站資料失敗:', err);
-      setError('無法連接到資料庫，請確認 API server 是否啟動');
+      
+      // 顯示更詳細的錯誤訊息
+      if (err.response) {
+        // 服務器回應了，但狀態碼不是 2xx
+        console.error('回應狀態:', err.response.status);
+        console.error('回應資料:', err.response.data);
+        setError(`API 錯誤 (${err.response.status}): 請確認 API server 是否正確設定`);
+      } else if (err.request) {
+        // 請求已發送，但沒有收到回應
+        console.error('無回應:', err.request);
+        setError('無法連接到 API server，請確認它是否啟動');
+      } else {
+        // 設置請求時發生錯誤
+        console.error('請求錯誤:', err.message);
+        setError(`請求錯誤: ${err.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -76,10 +105,38 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
   // 更新充電站資料
   const updateStationData = async (updatedStation: ChargingStation) => {
     try {
-      await axios.put(`${API_URL}/stations/1`, updatedStation);
-    } catch (err) {
+      console.log(`嘗試更新充電站資料到 ${API_URL}/stations/1`);
+      console.log('發送資料:', JSON.stringify(updatedStation, null, 2));
+      
+      const response = await axios.put(`${API_URL}/stations/1`, updatedStation, {
+        timeout: 10000, // 10 秒超時
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+      
+      console.log('更新成功:', response.status, response.data);
+      // 更新成功後清除任何先前的錯誤
+      setError(null);
+    } catch (err: any) {
       console.error('更新充電站資料失敗:', err);
-      setError('更新資料失敗，請確認 API server 是否啟動');
+      
+      // 顯示更詳細的錯誤訊息
+      if (err.response) {
+        // 服務器回應了，但狀態碼不是 2xx
+        console.error('回應狀態:', err.response.status);
+        console.error('回應資料:', err.response.data);
+        setError(`更新失敗 (${err.response.status}): 請確認 API server 是否正確設定`);
+      } else if (err.request) {
+        // 請求已發送，但沒有收到回應
+        console.error('無回應:', err.request);
+        setError('更新失敗: 無法連接到 API server');
+      } else {
+        // 設置請求時發生錯誤
+        console.error('請求錯誤:', err.message);
+        setError(`更新失敗: ${err.message}`);
+      }
     }
   };
 
@@ -222,9 +279,9 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
         sx={{ 
           p: 2, 
           mb: 3, 
-          bgcolor: '#e8f5e9', 
-          color: '#2e7d32',
-          border: '1px solid #c8e6c9',
+          bgcolor: error ? '#ffebee' : '#e8f5e9', 
+          color: error ? '#d32f2f' : '#2e7d32',
+          border: `1px solid ${error ? '#ffcdd2' : '#c8e6c9'}`,
           borderRadius: 1,
           display: 'flex',
           alignItems: 'center',
@@ -234,11 +291,11 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
         <Typography variant="body1">
           MongoDB Atlas 雲端資料庫狀態：
           <span style={{ fontWeight: 'bold' }}>
-            {loading ? '連線中...' : '已連線 ✓'}
+            {loading ? '連線中...' : error ? '連線失敗' : '已連線 ✓'}
           </span>
         </Typography>
         <Typography variant="body2" sx={{ color: '#616161' }}>
-          所有裝置都會共用同一份資料庫
+          {error ? '請確認 API server 是否啟動' : '所有裝置都會共用同一份資料庫'}
         </Typography>
       </Paper>
       
