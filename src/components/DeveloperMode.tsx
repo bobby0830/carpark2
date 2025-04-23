@@ -15,9 +15,14 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  CircularProgress,
 } from '@mui/material';
 import { ChargingStation, ChargingRequest } from '../types/types';
 import { formatTime } from '../utils/timeFormat';
+import axios from 'axios';
+
+// API 伺服器基本 URL
+const API_URL = 'http://localhost:5000/api';
 
 interface DeveloperModeProps {
   chargingStation: ChargingStation;
@@ -45,6 +50,42 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
     return totalWaitingTime;
   };
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 從 API 獲取充電站資料
+  const fetchStationData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await axios.get(`${API_URL}/stations/1`); // 假設 ID 為 1
+      if (response.data) {
+        setChargingStation(response.data);
+      }
+    } catch (err) {
+      console.error('獲取充電站資料失敗:', err);
+      setError('無法連接到資料庫，請確認 API server 是否啟動');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 更新充電站資料
+  const updateStationData = async (updatedStation: ChargingStation) => {
+    try {
+      await axios.put(`${API_URL}/stations/1`, updatedStation);
+    } catch (err) {
+      console.error('更新充電站資料失敗:', err);
+      setError('更新資料失敗，請確認 API server 是否啟動');
+    }
+  };
+
+  // 初始載入資料
+  useEffect(() => {
+    fetchStationData();
+  }, []);
+
+  // 計時器更新充電狀態
   useEffect(() => {
     const timer = setInterval(() => {
       setChargingStation(prev => {
@@ -58,11 +99,11 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
           const [nextInQueue, ...remainingQueue] = prev.queue;
           if (nextInQueue) {
             // Start charging the next request
-            return {
+            const updatedStation: ChargingStation = {
               ...prev,
               currentRequest: {
                 ...nextInQueue,
-                status: 'charging',
+                status: 'charging' as 'charging', // 明確指定為充電狀態
                 remainingTime: nextInQueue.requestedChargingTime
               },
               queue: remainingQueue.map(req => ({
@@ -71,18 +112,26 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
               })),
               isAvailable: false
             };
+            
+            // 更新到資料庫
+            updateStationData(updatedStation);
+            return updatedStation;
           } else {
             // No more requests in queue
-            return {
+            const updatedStation: ChargingStation = {
               ...prev,
               currentRequest: undefined,
               isAvailable: true
             };
+            
+            // 更新到資料庫
+            updateStationData(updatedStation);
+            return updatedStation;
           }
         }
 
         // Update current request and waiting times
-        return {
+        const updatedStation: ChargingStation = {
           ...prev,
           currentRequest: {
             ...prev.currentRequest,
@@ -96,22 +145,40 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
             })
           }))
         };
+        
+        // 每分鐘更新一次資料庫（避免過於頻繁的 API 請求）
+        if (Math.floor(newRemainingTime * 60) % 60 === 0) {
+          updateStationData(updatedStation);
+        }
+        
+        return updatedStation;
       });
     }, 1000);
 
     return () => clearInterval(timer);
   }, []);
 
-  const handleInitializeDB = () => {
-    // Initialize with empty data
-    const emptyStation: ChargingStation = {
-      currentRequest: undefined,
-      queue: [],
-      isAvailable: true
-    };
-    setChargingStation(emptyStation);
-    alert('資料庫已成功初始化！');
-    navigate('/');
+  const handleInitializeDB = async () => {
+    try {
+      setLoading(true);
+      // Initialize with empty data
+      const emptyStation: ChargingStation = {
+        currentRequest: undefined,
+        queue: [],
+        isAvailable: true
+      };
+      
+      // 透過 API 更新資料庫
+      await axios.put(`${API_URL}/stations/1`, emptyStation);
+      setChargingStation(emptyStation);
+      alert('資料庫已成功初始化！所有裝置都會共用這個資料庫。');
+      navigate('/');
+    } catch (err) {
+      console.error('初始化資料庫失敗:', err);
+      setError('初始化資料庫失敗，請確認 API server 是否啟動');
+    } finally {
+      setLoading(false);
+    }
   };
 
 
@@ -121,18 +188,70 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
       <Typography variant="h4" sx={{ color: '#1976d2', mb: 3, fontWeight: 'bold' }}>
         開發者模式
       </Typography>
+      
+      {/* 顯示錯誤訊息 */}
+      {error && (
+        <Paper 
+          elevation={0} 
+          sx={{ 
+            p: 2, 
+            mb: 3, 
+            bgcolor: '#ffebee', 
+            color: '#d32f2f',
+            border: '1px solid #ffcdd2',
+            borderRadius: 1 
+          }}
+        >
+          <Typography variant="body1">{error}</Typography>
+          <Button 
+            size="small" 
+            sx={{ mt: 1 }} 
+            onClick={() => fetchStationData()}
+          >
+            重試連線
+          </Button>
+        </Paper>
+      )}
+      
+      {/* 顯示 API 連線狀態 */}
+      <Paper 
+        elevation={0} 
+        sx={{ 
+          p: 2, 
+          mb: 3, 
+          bgcolor: '#e8f5e9', 
+          color: '#2e7d32',
+          border: '1px solid #c8e6c9',
+          borderRadius: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2
+        }}
+      >
+        <Typography variant="body1">
+          MongoDB Atlas 雲端資料庫狀態：
+          <span style={{ fontWeight: 'bold' }}>
+            {loading ? '連線中...' : '已連線 ✓'}
+          </span>
+        </Typography>
+        <Typography variant="body2" sx={{ color: '#616161' }}>
+          所有裝置都會共用同一份資料庫
+        </Typography>
+      </Paper>
+      
       <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
         <Button 
           variant="contained" 
           color="warning" 
           onClick={handleInitializeDB}
+          disabled={loading}
           sx={{ 
             fontWeight: 'bold',
             px: 3,
             py: 1
           }}
         >
-          初始化資料庫
+          {loading ? <CircularProgress size={24} color="inherit" /> : '初始化資料庫'}
         </Button>
         <Button
           variant="contained"
