@@ -89,10 +89,15 @@ const DurationSelector: React.FC<DurationSelectorProps> = ({ chargingStation, se
   // 更新充電站資料到 MongoDB
   const updateStationData = async (updatedStation: ChargingStation) => {
     try {
-      console.log(`嘗試更新充電站資料到 ${API_URL}/stations/1`);
+      // 直接嘗試使用完整的 URL
+      const apiUrl = window.location.hostname === 'localhost' 
+        ? 'http://localhost:5000/stations/1' 
+        : `${window.location.origin}/api/stations/1`;
+      
+      console.log(`嘗試更新充電站資料到 ${apiUrl}`);
       console.log('發送資料:', JSON.stringify(updatedStation, null, 2));
       
-      const response = await axios.put(`${API_URL}/stations/1`, updatedStation, {
+      const response = await axios.put(apiUrl, updatedStation, {
         timeout: 10000, // 10 秒超時
         headers: {
           'Content-Type': 'application/json',
@@ -100,7 +105,8 @@ const DurationSelector: React.FC<DurationSelectorProps> = ({ chargingStation, se
         }
       });
       
-      console.log('更新成功:', response.status, response.data);
+      console.log('更新成功:', response.status);
+      console.log('回應資料:', JSON.stringify(response.data, null, 2));
       setApiError(null);
       return true;
     } catch (err: any) {
