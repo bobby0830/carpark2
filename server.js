@@ -55,8 +55,8 @@ const ChargingStation = mongoose.model('ChargingStation', chargingStationSchema)
 
 // API 端點
 
-// 獲取充電站
-app.get('/stations/:id', async (req, res) => {
+// 定義處理充電站請求的函數
+const handleGetStation = async (req, res) => {
   try {
     let station = await ChargingStation.findById(req.params.id);
     
@@ -76,23 +76,38 @@ app.get('/stations/:id', async (req, res) => {
     console.error('獲取充電站錯誤:', err);
     res.status(500).json({ message: '伺服器錯誤' });
   }
-});
+};
 
-// 更新充電站
-app.put('/stations/:id', async (req, res) => {
+const handleUpdateStation = async (req, res) => {
   try {
+    console.log('收到更新請求:', req.params.id, req.body);
     const station = await ChargingStation.findByIdAndUpdate(
       req.params.id,
       req.body,
       { new: true, upsert: true }
     );
     
+    console.log('更新後的充電站:', station);
     res.json(station);
   } catch (err) {
     console.error('更新充電站錯誤:', err);
     res.status(500).json({ message: '伺服器錯誤' });
   }
-});
+};
+
+// 原始路徑
+// 獲取充電站
+app.get('/stations/:id', handleGetStation);
+
+// 更新充電站
+app.put('/stations/:id', handleUpdateStation);
+
+// 新增對 /api 路徑的支持
+// 獲取充電站
+app.get('/api/stations/:id', handleGetStation);
+
+// 更新充電站
+app.put('/api/stations/:id', handleUpdateStation);
 
 // 靜態文件
 if (process.env.NODE_ENV === 'production') {
