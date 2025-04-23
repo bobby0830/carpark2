@@ -24,8 +24,8 @@ import axios from 'axios';
 // API 伺服器基本 URL
 // 判斷環境，如果是生產環境則使用雲端 API，否則使用本地開發環境
 const API_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:5000/api' 
-  : 'https://carpark2.vercel.app/api'; // 使用主應用程式的 URL 作為 API 端點
+  ? 'http://localhost:5000' 
+  : window.location.origin; // 使用目前網站的根路徑作為 API 端點
 
 interface DeveloperModeProps {
   chargingStation: ChargingStation;

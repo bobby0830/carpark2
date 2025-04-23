@@ -35,8 +35,13 @@ require('./models/ChargingStation');
 require('./models/ChargingRequest');
 
 // 引入 API 路由
-// 在 Vercel 上直接使用根路徑，不需要 /api 前綴
+// 在 Vercel 上使用根路徑作為 API 端點
 app.use('/', require('./routes/api'));
+
+// 添加一個簡單的測試端點
+app.get('/test', (req, res) => {
+  res.json({ message: 'API server is running!' });
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`API Server running on port ${PORT}`));
