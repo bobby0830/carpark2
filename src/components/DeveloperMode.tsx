@@ -63,36 +63,44 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
       setError(null);
       
       // 打印更詳細的調試信息
+      console.log('開發者模式正在嘗試獲取充電站資料...');
       console.log('當前環境:', process.env.NODE_ENV);
       console.log('當前主機名:', window.location.hostname);
       console.log('完整的 URL:', window.location.href);
-      console.log(`嘗試連接到 API: ${API_URL}/stations/1`);
+      console.log('當前路徑:', window.location.pathname);
       
       // 直接嘗試使用完整的 URL
       const apiUrl = window.location.hostname === 'localhost' 
         ? 'http://localhost:5000/stations/1' 
         : `${window.location.origin}/api/stations/1`;
       
-      console.log('實際使用的 API URL:', apiUrl);
+      console.log(`嘗試連接到 API URL: ${apiUrl}`);
       
-      // 添加超時設定
-      const response = await axios.get(apiUrl, { 
+      // 添加随机参数避免缓存
+      const timestamp = new Date().getTime();
+      const urlWithTimestamp = `${apiUrl}?t=${timestamp}`;
+      console.log(`带有随机参数的 URL: ${urlWithTimestamp}`);
+      
+      const response = await axios.get(urlWithTimestamp, {
         timeout: 10000, // 10 秒超時
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         }
       });
       
-      console.log('取得回應:', response.status);
+      console.log('收到回應:', response.status);
       console.log('回應資料:', JSON.stringify(response.data, null, 2));
       
       if (response.data) {
         console.log('設置充電站資料:', JSON.stringify(response.data, null, 2));
         setChargingStation(response.data);
+        console.log('充電站資料已設置');
       } else {
-        console.error('無效的回應資料');
-        setError('無效的回應資料');
+        console.error('回應資料為空');
+        setError('無法獲取充電站資料，回應資料為空');
       }
     } catch (err: any) {
       console.error('獲取充電站資料失敗:', err);
@@ -101,7 +109,7 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
         // 服務器回應了，但狀態碼不是 2xx
         console.error('回應狀態:', err.response.status);
         console.error('回應資料:', err.response.data);
-        setError(`API 錯誤 (${err.response.status}): 請確認 API server 是否正確設定`);
+        setError(`獲取失敗 (${err.response.status}): 請確認 API server 是否正確設定`);
       } else if (err.request) {
         // 請求已發送，但沒有收到回應
         console.error('無回應:', err.request);
@@ -112,13 +120,8 @@ const DeveloperMode: React.FC<DeveloperModeProps> = ({ chargingStation, setCharg
         setError(`請求錯誤: ${err.message}`);
       }
       
-      // 嘗試創建一個空的充電站對象
-      console.log('嘗試創建一個空的充電站對象');
-      setChargingStation({
-        currentRequest: undefined,
-        queue: [],
-        isAvailable: true
-      });
+      // 不在錯誤情況下設置空的充電站對象
+      // 保留原來的狀態
     } finally {
       setLoading(false);
     }
